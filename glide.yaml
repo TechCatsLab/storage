@@ -2,3 +2,5 @@ package: github.com/storage
 import:
 - package: github.com/go-sql-driver/mysql
   version: ^1.4.0
+- package: github.com/go-gorp/gorp
+  version: ^2.1.0

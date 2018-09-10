@@ -5,37 +5,45 @@ import (
 	"strings"
 )
 
-func parseTableSchema(db *sql.DB, schema string) (database string, table string, err error) {
+func parseTableSchema(db *sql.DB, schema string) (database string, table string) {
 	schemaSlice := strings.SplitN(schema, ".", 2)
 	if len(schemaSlice) == 2 {
-		database, table = schemaSlice[0], schemaSlice[1]
-		database = strings.TrimLeft(database, " ")
-		database = strings.TrimRight(database, " ")
-		table = strings.TrimLeft(table, " ")
-		table = strings.TrimRight(table, " ")
+		database, table = strings.Trim(schemaSlice[0], " "), strings.Trim(schemaSlice[1], " ")
+		if table == "" {
+			panic(errEmptyParamTable)
+		}
 		if database == "" {
-			database, err = getDatabaseName(db)
+			database = getDatabaseName(db)
 		}
 		return
 	}
-	database, err = getDatabaseName(db)
-	table = schemaSlice[0]
+	table = strings.Trim(schemaSlice[0], " ")
+	if table == "" {
+		panic(errEmptyParamTable)
+	}
+	database = getDatabaseName(db)
 	return
 }
 
-func getDatabaseName(db *sql.DB) (database string, err error) {
+// getDatabaseName gets the name of the currently selected database
+// Causing panic if there is no selected database
+func getDatabaseName(db *sql.DB) string {
+	var database string
 	r := db.QueryRow(
 		"SELECT SCHEMA_NAME " +
 			"FROM information_schema.SCHEMATA " +
 			"WHERE SCHEMA_NAME = DATABASE();",
 	)
-	err = r.Scan(&database)
+	err := r.Scan(&database)
 
-	// not select a database, database name is regard as blank
+	// no selected database
 	if err == sql.ErrNoRows {
-		err = nil
+		err = errNoSelectedDatabase
 	}
-	return
+	if err != nil {
+		panic(err)
+	}
+	return database
 }
 
 func exist(r *sql.Row) bool {

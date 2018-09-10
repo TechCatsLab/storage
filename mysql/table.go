@@ -7,17 +7,65 @@ import (
 	"strings"
 )
 
-func CreateTableIfNotExists(db *sql.DB, i interface{}) error {
-	return CreateTableWithNameIfNotExists(db, i, "")
+// TableExist check whether a table exists
+// Causing panic if lack of param
+// Spaces at two sides will be removed when query
+func TableExist(db *sql.DB, schema string) bool {
+	database, table := parseTableSchema(db, schema)
+	r := db.QueryRow(
+		"SELECT TABLE_NAME "+
+			"FROM information_schema.TABLES "+
+			"WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?;", database, table,
+	)
+	return exist(r)
 }
 
-func CreateTableWithNameIfNotExists(db *sql.DB, i interface{}, name string) error {
+// CreateTable create a table, return errTableAlreadyExist if the table is already exist
+func CreateTable(db *sql.DB, i interface{}) error {
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
+	table := t.Name()
+	return CreateTableWithName(db, i, table)
+}
+
+// CreateTableWithName create a table with specific name, return errTableAlreadyExist if the table is already exist
+func CreateTableWithName(db *sql.DB, i interface{}, table string) error {
+	if TableExist(db, table) {
+		return errTableAlreadyExist
+	}
+	return CreateTableWithNameIfNotExist(db, i, table)
+}
+
+// CreateTableIfNotExist creates a table if it's not exist
+// example:
+// type CreateTableInstance struct {
+// 	id        int32      `mysql:"_id, primarykey, autoincrement, notnull"`
+// 	Name      string     `mysql:",unique, default:zhanghow, notnull, size:20"`
+// 	CreatedAt *time.Time `mysql:"created_at, notnull"`
+// }
+//
+// err := CreateTableIfNotExist(db, CreateTableInstance{})
+// it is equal to :
+// err := CreateTableWithNameIfNotExist(db, CreateTableInstance{}, "CreateTableInstance")
+func CreateTableIfNotExist(db *sql.DB, i interface{}) error {
+	t := reflect.TypeOf(i)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return CreateTableWithNameIfNotExist(db, i, t.Name())
+}
+
+// CreateTableWithNameIfNotExist creates a table with the specific name
+func CreateTableWithNameIfNotExist(db *sql.DB, i interface{}, name string) error {
+	name = strings.Trim(name, " ")
 	if name == "" {
-		name = t.Name()
+		panic(errEmptyParamTable)
+	}
+	t := reflect.TypeOf(i)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
 		panic(fmt.Sprintf("%s is not a struct type", t.String()))
@@ -25,13 +73,14 @@ func CreateTableWithNameIfNotExists(db *sql.DB, i interface{}, name string) erro
 	if t.NumField() == 0 {
 		panic("struct has zero field")
 	}
-	sqlTable := getTableSql(name, t)
+	sqlTable := getTableSQL(name, t)
 	_, err := db.Exec(sqlTable)
 	return err
 }
 
-func getTableSql(name string, t reflect.Type) string {
-	sqlColumns := getColumnsSql(t)
+// getTableSQL get the SQL for create a table
+func getTableSQL(name string, t reflect.Type) string {
+	sqlColumns := getColumnsSQL(t)
 	sqlTable := "CREATE TABLE IF NOT EXISTS " + name + "("
 	for i, c := range sqlColumns {
 		if i == 0 {
@@ -43,12 +92,13 @@ func getTableSql(name string, t reflect.Type) string {
 	return sqlTable + ");"
 }
 
-func getColumnsSql(t reflect.Type) (sqlColumns []string) {
+// getColumnsSQL create the columns part of SQL for create a table
+func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 	n := t.NumField()
 	for i := 0; i < n; i++ {
 		field := t.Field(i)
 		if field.Anonymous && field.Type.Kind() == reflect.Struct {
-			sqlSubColumns := getColumnsSql(field.Type)
+			sqlSubColumns := getColumnsSQL(field.Type)
 			sqlColumns = append(sqlColumns, sqlSubColumns...)
 		} else {
 			var (
@@ -107,10 +157,7 @@ func getColumnsSql(t reflect.Type) (sqlColumns []string) {
 				case "size":
 					columnType = columnType + "(" + argSplited[1] + ")"
 				case "default":
-					if strings.Contains(columnType, "VARCHAR") {
-						argSplited[1] = "'" + argSplited[1] + "'"
-					}
-					columnDefault = "DEFAULT " + argSplited[1]
+					columnDefault = "DEFAULT '" + argSplited[1] + "'"
 				case "primarykey":
 					isPrimaryKey = true
 				case "autoincrement":
@@ -143,15 +190,4 @@ func getColumnsSql(t reflect.Type) (sqlColumns []string) {
 		}
 	}
 	return
-}
-
-func TableExist(db *sql.DB, schema string) bool {
-	database, table, err := parseTableSchema(db, schema)
-	checkErr(err)
-	r := db.QueryRow(
-		"SELECT TABLE_NAME "+
-			"FROM information_schema.TABLES "+
-			"WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?;", database, table,
-	)
-	return exist(r)
 }

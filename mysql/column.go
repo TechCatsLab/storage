@@ -63,3 +63,31 @@ func CreateColumnWithConstraint(db *sql.DB, schema, column, columnType, defaul s
 	_, err := db.Exec("ALTER TABLE " + database + "." + table + " ADD " + column + " " + columnType + constraint)
 	return err
 }
+
+func DropColumn(db *sql.DB, schema, column string) error {
+	column = strings.Trim(column, " ")
+	if column == "" {
+		panic(errEmptyParamColumn)
+	}
+	database, table := parseTableSchema(db, schema)
+	schema = database + "." + table
+	if !ColumnExist(db, schema, column) {
+		return errDropedColumnNotExist
+	}
+	_, err := db.Exec("ALTER TABLE " + schema + " DROP COLUMN " + column)
+	return err
+}
+
+func DropColumnIfExist(db *sql.DB, schema, column string) error {
+	column = strings.Trim(column, " ")
+	if column == "" {
+		panic(errEmptyParamColumn)
+	}
+	database, table := parseTableSchema(db, schema)
+	schema = database + "." + table
+	if !ColumnExist(db, schema, column) {
+		return nil
+	}
+	_, err := db.Exec("ALTER TABLE " + schema + " DROP COLUMN " + column)
+	return err
+}

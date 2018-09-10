@@ -2,55 +2,35 @@ package mysql
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/storage/mysql/constant"
 )
 
-var dbInstance = "db1"
+var dbInstance = "testDatabase1014"
+var errTestFaild = errors.New("test faild")
 
-func Test_DatabaseExist(t *testing.T) {
+func Test_Database(t *testing.T) {
 	db, err := sql.Open("mysql", constant.Dsn)
 	if err != nil {
-		panic(err)
+		t.Error(err)
 	}
 	defer db.Close()
 
-	err = CreateDatabaseIfNotExist(db, dbInstance)
-	if err != nil {
-		panic(err)
+	if err = CreateDatabase(db, dbInstance); err != nil {
+		t.Error(err)
 	}
 	if !DatabaseExist(db, dbInstance) {
-		panic("test err ")
+		t.Error(errTestFaild)
 	}
-	if !DatabaseExist(db, " "+dbInstance+"  ") {
-		panic("test err ")
+	if err = DropDatabase(db, " "+dbInstance+"  "); err != nil {
+		t.Error(err)
 	}
-	_, err = db.Exec("drop database " + dbInstance)
-	if err != nil {
-		panic(err)
+	if err = DropDatabaseIfExist(db, "  "+dbInstance+" "); err != nil {
+		t.Error(err)
 	}
 	if DatabaseExist(db, dbInstance) {
-		panic("test err ")
-	}
-
-	dbInstance = " "
-	if !DatabaseExist(db, dbInstance) {
-		panic("test err ")
-	}
-}
-
-func Test_CreateDatabase(t *testing.T) {
-	db, err := sql.Open("mysql", constant.Dsn)
-	if err != nil {
-		panic(err)
-	}
-	err = CreateDatabaseIfNotExist(db, "db1")
-	if err != nil {
-		panic(err)
-	}
-	_, err = db.Exec("drop database db1;")
-	if err != nil {
-		panic(err)
+		t.Error(errTestFaild)
 	}
 }

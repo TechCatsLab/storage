@@ -10,73 +10,70 @@ import (
 	"github.com/storage/mysql/constant"
 )
 
-type testCreateTablePass struct {
+type testCreateTable struct {
 	id        int32      `mysql:"_id, primarykey, autoincrement, notnull"`
 	Name      string     `mysql:",unique, default:zhanghow, notnull, size:20"`
 	CreatedAt *time.Time `mysql:"created_at, notnull"`
 }
 
-func Test_CreateTableIfNotExists(t *testing.T) {
+func Test_Table(t *testing.T) {
 	db, err := sql.Open("mysql", constant.Dsn)
 	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	err = CreateTableIfNotExists(db, testCreateTablePass{})
-	if err != nil {
-		panic(err)
+		t.Error(err)
 	}
 
-	err = CreateTableIfNotExists(db, &testCreateTablePass{})
-	if err != nil {
-		panic(err)
+	if err = CreateDatabaseIfNotExist(db, dbInstance); err != nil {
+		t.Error(err)
 	}
-	db.Exec("drop table testCreateTablePass;")
-}
-
-func Test_TableExist(t *testing.T) {
-	db, err := sql.Open("mysql", constant.Dsn)
-	if err != nil {
-		panic(err)
+	if err = CreateDatabase(db, dbInstance); err != errDatabaseAlreadyExist {
+		t.Error(errTestFaild)
 	}
-
-	err = CreateDatabaseIfNotExist(db, "db1")
-	if err != nil {
-		panic(err)
+	if _, err = db.Exec("USE " + dbInstance); err != nil {
+		t.Error(err)
 	}
-	_, err = db.Exec("use db1;")
-	if err != nil {
-		panic(err)
+	if err = CreateTable(db, testCreateTable{}); err != nil {
+		t.Error(err)
 	}
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS table1(id VARCHAR(3) PRIMARY KEY);")
-	if err != nil {
-		panic(err)
+	if !TableExist(db, " testCreateTable ") {
+		t.Error(errTestFaild)
 	}
-
-	if !TableExist(db, "db1.table1") {
-		panic("table not exist")
+	if err = CreateTable(db, &testCreateTable{}); err != errTableAlreadyExist {
+		t.Error(err)
 	}
-	if !TableExist(db, "  db1 . table1  ") {
-		panic("table not exist")
+	if err = CreateTableIfNotExist(db, testCreateTable{}); err != nil {
+		t.Error(err)
 	}
-	if !TableExist(db, "   . table1  ") {
-		panic("table not exist")
+	if err = CreateTableWithName(db, testCreateTable{}, " table1 "); err != nil {
+		t.Error(err)
 	}
-	if !TableExist(db, ". table1  ") {
-		panic("table not exist")
+	if !TableExist(db, dbInstance+" . "+" table1 ") {
+		t.Error(errTestFaild)
 	}
-	if TableExist(db, " ytugihhug4567986cg  ") {
-		panic("err test table exist")
+	if err = CreateTableWithNameIfNotExist(db, testCreateTable{}, "table1"); err != nil {
+		t.Error(err)
 	}
-	if TableExist(db, ".") {
-		panic("err test table exist")
+	if err = CreateTableWithNameIfNotExist(db, testCreateTable{}, "table2"); err != nil {
+		t.Error(err)
 	}
-	if TableExist(db, "") {
-		panic("err test table exist")
+	if !TableExist(db, " "+dbInstance+" . "+" table2 ") {
+		t.Error(errTestFaild)
 	}
-	_, err = db.Exec("drop database db1")
-	if err != nil {
-		panic(err)
+	if err = DropTable(db, dbInstance+"."+" table1 "); err != nil {
+		t.Error(err)
+	}
+	if TableExist(db, " "+dbInstance+" . "+" table1 ") {
+		t.Error(errTestFaild)
+	}
+	if err = DropTableIfExist(db, dbInstance+"."+"table1"); err != nil {
+		t.Error(err)
+	}
+	if err = DropTableIfExist(db, dbInstance+"."+"table2"); err != nil {
+		t.Error(err)
+	}
+	if TableExist(db, dbInstance+"."+"table2") {
+		t.Error(errTestFaild)
+	}
+	if err = DropDatabase(db, dbInstance); err != nil {
+		t.Error(err)
 	}
 }

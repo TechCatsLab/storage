@@ -191,3 +191,23 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 	}
 	return
 }
+
+// DropTable panic if schema does not assign a table, or there is no currently selected database
+// and schema does schema does not assign a database
+// Return errDropTableNotExist when table not exists
+func DropTable(db *sql.DB, schema string) error {
+	database, table := parseTableSchema(db, schema)
+	if !TableExist(db, database+"."+table) {
+		return errDropedTableNotExist
+	}
+	_, err := db.Exec("DROP TABLE " + database + "." + table)
+	return err
+}
+
+// DropTableIfExist panic if schema does not assign a table, or there is no currently selected database
+// and schema does schema does not assign a database
+func DropTableIfExist(db *sql.DB, schema string) error {
+	database, table := parseTableSchema(db, schema)
+	_, err := db.Exec("DROP TABLE IF EXISTS " + database + "." + table)
+	return err
+}

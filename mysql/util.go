@@ -58,9 +58,3 @@ func exist(r *sql.Row) bool {
 		panic(err)
 	}
 }
-
-func checkErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}

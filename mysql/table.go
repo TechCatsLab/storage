@@ -34,7 +34,7 @@ func CreateTable(db *sql.DB, i interface{}) error {
 // CreateTableWithSchema create a table with specific name, return errTableAlreadyExist if the table is already exist
 func CreateTableWithSchema(db *sql.DB, i interface{}, schema string) error {
 	database, table := parseTableSchema(db, schema)
-	schema = database+"."+table
+	schema = database + "." + table
 	if TableExist(db, schema) {
 		return errTableAlreadyExist
 	}
@@ -63,7 +63,7 @@ func CreateTableIfNotExist(db *sql.DB, i interface{}) error {
 // CreateTableWithSchemaIfNotExist creates a table with the specific name
 func CreateTableWithSchemaIfNotExist(db *sql.DB, i interface{}, schema string) error {
 	database, table := parseTableSchemaDefault(db, i, schema)
-	schema = database+"."+table
+	schema = database + "." + table
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()

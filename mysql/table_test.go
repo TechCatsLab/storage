@@ -43,16 +43,16 @@ func Test_Table(t *testing.T) {
 	if err = CreateTableIfNotExist(db, testCreateTable{}); err != nil {
 		t.Error(err)
 	}
-	if err = CreateTableWithName(db, testCreateTable{}, " table1 "); err != nil {
+	if err = CreateTableWithSchema(db, testCreateTable{}, " table1 "); err != nil {
 		t.Error(err)
 	}
 	if !TableExist(db, dbInstance+" . "+" table1 ") {
 		t.Error(errTestFaild)
 	}
-	if err = CreateTableWithNameIfNotExist(db, testCreateTable{}, "table1"); err != nil {
+	if err = CreateTableWithSchemaIfNotExist(db, testCreateTable{}, "table1"); err != nil {
 		t.Error(err)
 	}
-	if err = CreateTableWithNameIfNotExist(db, testCreateTable{}, "table2"); err != nil {
+	if err = CreateTableWithSchemaIfNotExist(db, testCreateTable{}, "table2"); err != nil {
 		t.Error(err)
 	}
 	if !TableExist(db, " "+dbInstance+" . "+" table2 ") {

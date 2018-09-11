@@ -3,14 +3,35 @@ package mysql
 import (
 	"database/sql"
 	"strings"
+	"reflect"
 )
 
-func parseTableSchema(db *sql.DB, schema string) (database string, table string) {
+func parseTableSchema(db *sql.DB, schema string) (database, table string) {
 	schemaSlice := strings.SplitN(schema, ".", 2)
 	if len(schemaSlice) == 2 {
 		database, table = strings.Trim(schemaSlice[0], " "), strings.Trim(schemaSlice[1], " ")
 		if table == "" {
 			panic(errEmptyParamTable)
+		}
+		if database == "" {
+			database = getDatabaseName(db)
+		}
+		return
+	}
+	table = strings.Trim(schemaSlice[0], " ")
+	if table == "" {
+		panic(errEmptyParamTable)
+	}
+	database = getDatabaseName(db)
+	return
+}
+
+func parseTableSchemaDefault(db *sql.DB, i interface{}, schema string)(database, table string){
+	schemaSlice := strings.SplitN(schema, ".", 2)
+	if len(schemaSlice) == 2 {
+		database, table = strings.Trim(schemaSlice[0], " "), strings.Trim(schemaSlice[1], " ")
+		if table == "" {
+			table = getInterfaceName(i)
 		}
 		if database == "" {
 			database = getDatabaseName(db)
@@ -44,6 +65,15 @@ func getDatabaseName(db *sql.DB) string {
 		panic(err)
 	}
 	return database
+}
+
+// getInterfaceName get the name of interface, get the name of element if i is a pointer type
+func getInterfaceName(i interface{})string {
+	t := reflect.TypeOf(i)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t.Name()
 }
 
 func exist(r *sql.Row) bool {

@@ -20,7 +20,7 @@ func Test_column(t *testing.T) {
 	if _, err = db.Exec("USE " + dbInstance); err != nil {
 		t.Error(err)
 	}
-	if err = CreateTableWithName(db, testCreateTable{}, "table1"); err != nil {
+	if err = CreateTableWithSchema(db, testCreateTable{}, "table1"); err != nil {
 		t.Error(err)
 	}
 	if err = CreateColumn(db, "table1", "column1", "VARCHAR(10)"); err != nil {

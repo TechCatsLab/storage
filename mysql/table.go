@@ -27,15 +27,18 @@ func CreateTable(db *sql.DB, i interface{}) error {
 		t = t.Elem()
 	}
 	table := t.Name()
-	return CreateTableWithName(db, i, table)
+	database := getDatabaseName(db)
+	return CreateTableWithSchema(db, i, database+"."+table)
 }
 
-// CreateTableWithName create a table with specific name, return errTableAlreadyExist if the table is already exist
-func CreateTableWithName(db *sql.DB, i interface{}, table string) error {
-	if TableExist(db, table) {
+// CreateTableWithSchema create a table with specific name, return errTableAlreadyExist if the table is already exist
+func CreateTableWithSchema(db *sql.DB, i interface{}, schema string) error {
+	database, table := parseTableSchema(db, schema)
+	schema = database+"."+table
+	if TableExist(db, schema) {
 		return errTableAlreadyExist
 	}
-	return CreateTableWithNameIfNotExist(db, i, table)
+	return CreateTableWithSchemaIfNotExist(db, i, schema)
 }
 
 // CreateTableIfNotExist creates a table if it's not exist
@@ -48,21 +51,19 @@ func CreateTableWithName(db *sql.DB, i interface{}, table string) error {
 //
 // err := CreateTableIfNotExist(db, CreateTableInstance{})
 // it is equal to :
-// err := CreateTableWithNameIfNotExist(db, CreateTableInstance{}, "CreateTableInstance")
+// err := CreateTableWithSchemaIfNotExist(db, CreateTableInstance{}, "CreateTableInstance")
 func CreateTableIfNotExist(db *sql.DB, i interface{}) error {
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	return CreateTableWithNameIfNotExist(db, i, t.Name())
+	return CreateTableWithSchemaIfNotExist(db, i, t.Name())
 }
 
-// CreateTableWithNameIfNotExist creates a table with the specific name
-func CreateTableWithNameIfNotExist(db *sql.DB, i interface{}, name string) error {
-	name = strings.Trim(name, " ")
-	if name == "" {
-		panic(errEmptyParamTable)
-	}
+// CreateTableWithSchemaIfNotExist creates a table with the specific name
+func CreateTableWithSchemaIfNotExist(db *sql.DB, i interface{}, schema string) error {
+	database, table := parseTableSchemaDefault(db, i, schema)
+	schema = database+"."+table
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -73,15 +74,15 @@ func CreateTableWithNameIfNotExist(db *sql.DB, i interface{}, name string) error
 	if t.NumField() == 0 {
 		panic("struct has zero field")
 	}
-	sqlTable := getTableSQL(name, t)
+	sqlTable := getTableSQL(schema, t)
 	_, err := db.Exec(sqlTable)
 	return err
 }
 
 // getTableSQL get the SQL for create a table
-func getTableSQL(name string, t reflect.Type) string {
+func getTableSQL(schema string, t reflect.Type) string {
 	sqlColumns := getColumnsSQL(t)
-	sqlTable := "CREATE TABLE IF NOT EXISTS " + name + "("
+	sqlTable := "CREATE TABLE IF NOT EXISTS " + schema + "("
 	for i, c := range sqlColumns {
 		if i == 0 {
 			sqlTable = sqlTable + c

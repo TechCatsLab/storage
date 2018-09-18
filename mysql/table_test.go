@@ -16,7 +16,7 @@ type testCreateTable struct {
 	CreatedAt *time.Time `mysql:"created_at, notnull"`
 }
 
-func Test_Table(t *testing.T) {
+func Test_table(t *testing.T) {
 	db, err := sql.Open("mysql", constant.Dsn)
 	if err != nil {
 		t.Error(err)

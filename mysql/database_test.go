@@ -11,7 +11,7 @@ import (
 var dbInstance = "testDatabase1014"
 var errTestFaild = errors.New("test faild")
 
-func Test_Database(t *testing.T) {
+func Test_database(t *testing.T) {
 	db, err := sql.Open("mysql", constant.Dsn)
 	if err != nil {
 		t.Error(err)

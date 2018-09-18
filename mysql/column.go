@@ -7,7 +7,7 @@ import (
 
 // ColumnExist check whether a column exists, use the currently selected database if schema does not
 // assign a database
-// lacking of database, table, or column leads to panic
+// Lacking of params database, table, or column leads to panic
 func ColumnExist(db *sql.DB, schema, column string) bool {
 	database, table := parseTableSchema(db, schema)
 	column = strings.Trim(column, " ")
@@ -22,8 +22,9 @@ func ColumnExist(db *sql.DB, schema, column string) bool {
 	return exist(r)
 }
 
-// CreateColumn create a column, if the column has been existed, return errColumnAlreadyExist
-// lacking of database, table, column or columnType leads to panic
+// CreateColumn create a column
+// Return errColumnAlreadyExist if the column has been existed
+// Lacking of params database, table, or column leads to panic
 func CreateColumn(db *sql.DB, schema, column, columnType string) error {
 	if ColumnExist(db, schema, column) {
 		return errColumnAlreadyExist
@@ -37,10 +38,14 @@ func CreateColumn(db *sql.DB, schema, column, columnType string) error {
 }
 
 // CreateColumnWithConstraint create a column with constraint
-// lacking of needed param leads to panic
+// Return errColumnAlreadyExist if the column has been existed
+// Lacking of params database, table, column or columnType leads to panic
 func CreateColumnWithConstraint(db *sql.DB, schema, column, columnType, defaul string, isPK, isUniq, isAutoIncr, isNotNull bool) error {
 	if ColumnExist(db, schema, column) {
 		return errColumnAlreadyExist
+	}
+	if columnType = strings.Trim(columnType, " "); columnType == "" {
+		panic(errEmptyParamColType)
 	}
 	var constraint string
 	if isPK {
@@ -64,6 +69,9 @@ func CreateColumnWithConstraint(db *sql.DB, schema, column, columnType, defaul s
 	return err
 }
 
+// DropColumn drop a specific cloumn
+// Return errDropedColumnNotExist if column not exists
+// Lacking of params database, table, column or columnType leads to panic
 func DropColumn(db *sql.DB, schema, column string) error {
 	column = strings.Trim(column, " ")
 	if column == "" {
@@ -78,6 +86,8 @@ func DropColumn(db *sql.DB, schema, column string) error {
 	return err
 }
 
+// DropColumnIfExist drop a specific cloumn if exists
+// Lacking of params database, table, column or columnType leads to panic
 func DropColumnIfExist(db *sql.DB, schema, column string) error {
 	column = strings.Trim(column, " ")
 	if column == "" {

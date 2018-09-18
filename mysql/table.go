@@ -8,8 +8,7 @@ import (
 )
 
 // TableExist check whether a table exists
-// Causing panic if lack of param
-// Spaces at two sides will be removed when query
+// Panic if lack of database or table, and spaces in schema will be removed when query
 func TableExist(db *sql.DB, schema string) bool {
 	database, table := parseTableSchema(db, schema)
 	r := db.QueryRow(
@@ -21,6 +20,7 @@ func TableExist(db *sql.DB, schema string) bool {
 }
 
 // CreateTable create a table, return errTableAlreadyExist if the table is already exist
+// Name of i (or dereferenced i when i is a pointer) is regarded as table name
 func CreateTable(db *sql.DB, i interface{}) error {
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
@@ -32,8 +32,11 @@ func CreateTable(db *sql.DB, i interface{}) error {
 }
 
 // CreateTableWithSchema create a table with specific name, return errTableAlreadyExist if the table is already exist
+// Use the currently selected database if schema does not assign a database
+// Use the name of i (or dereferenced i when i is a pointer) as table name, if schema does not assign a table
+// Panic if you both do not select a databsae currently and do not assign a database in schema
 func CreateTableWithSchema(db *sql.DB, i interface{}, schema string) error {
-	database, table := parseTableSchema(db, schema)
+	database, table := parseTableSchemaDefault(db, i, schema)
 	schema = database + "." + table
 	if TableExist(db, schema) {
 		return errTableAlreadyExist
@@ -42,7 +45,8 @@ func CreateTableWithSchema(db *sql.DB, i interface{}, schema string) error {
 }
 
 // CreateTableIfNotExist creates a table if it's not exist
-// example:
+// Name of i (or dereferenced i when i is a pointer) is regarded as table name
+// For example:
 // type CreateTableInstance struct {
 // 	id        int32      `mysql:"_id, primarykey, autoincrement, notnull"`
 // 	Name      string     `mysql:",unique, default:zhanghow, notnull, size:20"`
@@ -50,8 +54,8 @@ func CreateTableWithSchema(db *sql.DB, i interface{}, schema string) error {
 // }
 //
 // err := CreateTableIfNotExist(db, CreateTableInstance{})
-// it is equal to :
-// err := CreateTableWithSchemaIfNotExist(db, CreateTableInstance{}, "CreateTableInstance")
+// which is equal to :
+// err := CreateTableWithSchemaIfNotExist(db, &CreateTableInstance{}, "CreateTableInstance")
 func CreateTableIfNotExist(db *sql.DB, i interface{}) error {
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
@@ -61,6 +65,9 @@ func CreateTableIfNotExist(db *sql.DB, i interface{}) error {
 }
 
 // CreateTableWithSchemaIfNotExist creates a table with the specific name
+// Use the currently selected database if schema does not assign a database
+// Use the name of i (or dereferenced i when i is a pointer) as table name, if schema does not assign a table
+// Panic if you both do not select a databsae currently and do not assign a database in schema
 func CreateTableWithSchemaIfNotExist(db *sql.DB, i interface{}, schema string) error {
 	database, table := parseTableSchemaDefault(db, i, schema)
 	schema = database + "." + table
@@ -141,6 +148,7 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 					panic(fmt.Sprintf("unsuported type for mysql %s", ft))
 				}
 			}
+			// args[0] is name of column
 			for _, arg := range args[1:] {
 				argSplited := strings.SplitN(arg, ":", 2)
 				switch argSplited[0] {
@@ -193,8 +201,9 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 	return
 }
 
-// DropTable panic if schema does not assign a table, or there is no currently selected database
-// and schema does schema does not assign a database
+// DropTable drop a specific table
+// Panic if schema does not assign a table
+// Panic if you both do not select a databsae currently and do not assign a database in schema
 // Return errDropTableNotExist when table not exists
 func DropTable(db *sql.DB, schema string) error {
 	database, table := parseTableSchema(db, schema)
@@ -205,8 +214,9 @@ func DropTable(db *sql.DB, schema string) error {
 	return err
 }
 
-// DropTableIfExist panic if schema does not assign a table, or there is no currently selected database
-// and schema does schema does not assign a database
+// DropTableIfExist drop a specific table if exists
+// Panic if schema does not assign a table
+// Panic if you both do not select a databsae currently and do not assign a database in schema
 func DropTableIfExist(db *sql.DB, schema string) error {
 	database, table := parseTableSchema(db, schema)
 	_, err := db.Exec("DROP TABLE IF EXISTS " + database + "." + table)

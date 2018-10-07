@@ -1,8 +1,6 @@
-hash: 22682829d6292860b5388353e28d6c63fafdac1d158ddf5607928efe6e341c26
-updated: 2018-09-03T11:48:34.341195+08:00
+hash: 1bdaebba573f871115a41b8b4582e9a66c94b1ad43c90d6e5b171ccd54173f79
+updated: 2018-10-07T22:48:29.184695+08:00
 imports:
-- name: github.com/go-gorp/gorp
-  version: 6032c66e0f5f155fd56216ed14cbbdd991034605
 - name: github.com/go-sql-driver/mysql
   version: d523deb1b23d913de5bdada721a6071e71283618
 testImports: []

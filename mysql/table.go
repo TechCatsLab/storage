@@ -132,6 +132,7 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 			}
 
 			switch fieldType.Kind() {
+			// todo: boolean?
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				columnType = "INT"
 			case reflect.Float32:
@@ -164,6 +165,7 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 
 				switch argSplited[0] {
 				case "size":
+					// todo: distinct varchar and other type. many times it is a bug
 					columnType = columnType + "(" + argSplited[1] + ")"
 				case "default":
 					columnDefault = "DEFAULT '" + argSplited[1] + "'"

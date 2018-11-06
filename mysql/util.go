@@ -2,31 +2,52 @@ package mysql
 
 import (
 	"database/sql"
-	"strings"
 	"reflect"
+	"strings"
 )
 
-func parseTableSchema(db *sql.DB, schema string) (database, table string) {
+// parseTableSchema parse database(equal to schema in mysql) name and table name in param schema.
+// For instance:
+// 		1. parseTableSchema(db, "mydb.mytable") return "mydb" and "mytable"
+// 		2. parseTableSchema(db, ".mytable") return current database and "mytable"
+// 		3. parseTableSchema(db, "mytable") equal to instance 2
+// In other case, err != nil.
+func parseTableSchema(db *sql.DB, schema string) (database, table string, err error) {
 	schemaSlice := strings.SplitN(schema, ".", 2)
 	if len(schemaSlice) == 2 {
 		database, table = strings.Trim(schemaSlice[0], " "), strings.Trim(schemaSlice[1], " ")
 		if table == "" {
-			panic(errEmptyParamTable)
+			return "", "", errEmptyParamTable
 		}
 		if database == "" {
-			database = getDatabaseName(db)
+			database, err = getDatabaseName(db)
+			if err != nil {
+				return "", "", err
+			}
 		}
 		return
 	}
 	table = strings.Trim(schemaSlice[0], " ")
 	if table == "" {
-		panic(errEmptyParamTable)
+		return "", "", errEmptyParamTable
 	}
-	database = getDatabaseName(db)
+	database, err = getDatabaseName(db)
+	if err != nil {
+		return "", "", err
+	}
 	return
 }
 
-func parseTableSchemaDefault(db *sql.DB, i interface{}, schema string)(database, table string){
+// parseTableSchemaDefault parse database(equal to schema in mysql) name and table name in param schema.
+// For instance(similar to parseTableSchema, but return name of i when table is empty):
+// 		1. parseTableSchemaDefault(db, "mydb.mytable") return "mydb" and "mytable"
+// 		2. parseTableSchemaDefault(db, ".mytable") return current database and "mytable"
+// 		3. parseTableSchemaDefault(db, "mytable") equal to instance 2
+//		4. parseTableSchemaDefault(db, ".") return current database and name of i
+// 		5. parseTableSchemaDefault(db, "") equal to instance 4
+// 		6. parseTableSchemaDefault(db, "mydb.") return "mydb" and name of i
+// In other case, err != nil.
+func parseTableSchemaDefault(db *sql.DB, i interface{}, schema string) (database, table string, err error) {
 	schemaSlice := strings.SplitN(schema, ".", 2)
 	if len(schemaSlice) == 2 {
 		database, table = strings.Trim(schemaSlice[0], " "), strings.Trim(schemaSlice[1], " ")
@@ -34,41 +55,46 @@ func parseTableSchemaDefault(db *sql.DB, i interface{}, schema string)(database,
 			table = getInterfaceName(i)
 		}
 		if database == "" {
-			database = getDatabaseName(db)
+			database, err = getDatabaseName(db)
+			if err != nil {
+				return "", "", err
+			}
 		}
 		return
 	}
 	table = strings.Trim(schemaSlice[0], " ")
 	if table == "" {
-		panic(errEmptyParamTable)
+		table = getInterfaceName(i)
 	}
-	database = getDatabaseName(db)
+	database, err = getDatabaseName(db)
+	if err != nil {
+		return "", "", err
+	}
 	return
 }
 
-// getDatabaseName gets the name of the currently selected database
+// getDatabaseName gets the name of the current database
 // Causing panic if there is no selected database
-func getDatabaseName(db *sql.DB) string {
-	var database string
-	r := db.QueryRow(
+func getDatabaseName(db *sql.DB) (database string, err error) {
+	err = db.QueryRow(
 		"SELECT SCHEMA_NAME " +
 			"FROM information_schema.SCHEMATA " +
 			"WHERE SCHEMA_NAME = DATABASE();",
-	)
-	err := r.Scan(&database)
+	).Scan(&database)
 
-	// no selected database
-	if err == sql.ErrNoRows {
-		err = errNoSelectedDatabase
-	}
 	if err != nil {
+		// no currently selected database
+		if err == sql.ErrNoRows {
+			return "", errNoSelectedDatabase
+		}
+
 		panic(err)
 	}
-	return database
+	return
 }
 
 // getInterfaceName get the name of interface, get the name of element if i is a pointer type
-func getInterfaceName(i interface{})string {
+func getInterfaceName(i interface{}) string {
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -76,15 +102,15 @@ func getInterfaceName(i interface{})string {
 	return t.Name()
 }
 
-func exist(r *sql.Row) bool {
+func exist(r *sql.Row) (bool, error) {
 	var dest string
 	err := r.Scan(&dest)
 	switch err {
 	case sql.ErrNoRows:
-		return false
+		return false, nil
 	case nil:
-		return true
+		return true, nil
 	default:
-		panic(err)
+		return false, err
 	}
 }

@@ -5,47 +5,65 @@ import (
 	"strings"
 )
 
-// ColumnExist check whether a column exists, use the currently selected database if schema does not
-// assign a database
-// Lacking of params database, table, or column leads to panic
-func ColumnExist(db *sql.DB, schema, column string) bool {
-	database, table := parseTableSchema(db, schema)
+// ColumnExist check whether a column exists.
+// Use the currently selected database if schema does not contain one
+// Empty table or empty column leads to panic
+func ColumnExist(db *sql.DB, schema, column string) (bool, error) {
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return false, err
+	}
 	column = strings.Trim(column, " ")
 	if column == "" {
-		panic(errEmptyParamColumn)
+		return false, errEmptyParamColumn
 	}
 	r := db.QueryRow(
-		"SELECT COLUMN_NAME "+
-			"FROM information_schema.COLUMNS "+
-			"WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?;", database, table, column,
+		`SELECT COLUMN_NAME 
+			FROM information_schema.COLUMNS 
+			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`, database, table, column,
 	)
 	return exist(r)
 }
 
-// CreateColumn create a column
-// Return errColumnAlreadyExist if the column has been existed
-// Lacking of params database, table, or column leads to panic
-func CreateColumn(db *sql.DB, schema, column, columnType string) error {
-	if ColumnExist(db, schema, column) {
-		return errColumnAlreadyExist
+// CreateColumnIfNotExist create a column if not exist.
+func CreateColumnIfNotExist(db *sql.DB, schema, column, columnType string) error {
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return err
+	}
+	var colexist bool
+	colexist, err = ColumnExist(db, database+"."+table, column)
+	if err != nil {
+		return err
+	}
+	if colexist {
+		return nil
 	}
 	if strings.Trim(columnType, " ") == "" {
 		return errEmptyParamColType
 	}
-	database, table := parseTableSchema(db, schema)
-	_, err := db.Exec("ALTER TABLE " + database + "." + table + " ADD " + column + " " + columnType)
+	_, err = db.Exec("ALTER TABLE " + database + "." + table + " ADD " + column + " " + columnType)
 	return err
 }
 
-// CreateColumnWithConstraint create a column with constraint
-// Return errColumnAlreadyExist if the column has been existed
-// Lacking of params database, table, column or columnType leads to panic
-func CreateColumnWithConstraint(db *sql.DB, schema, column, columnType, defaul string, isPK, isUniq, isAutoIncr, isNotNull bool) error {
-	if ColumnExist(db, schema, column) {
-		return errColumnAlreadyExist
+// CreateColumnWithConstraint create a column with constraint if not exist.
+// Empty param leads to panic.
+func CreateColumnWithConstraint(db *sql.DB, schema, column, columnType, deflt string, isPK, isUniq, isAutoIncr, isNotNull bool) error {
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return err
 	}
-	if columnType = strings.Trim(columnType, " "); columnType == "" {
-		panic(errEmptyParamColType)
+	var colexist bool
+	colexist, err = ColumnExist(db, database+"."+table, column)
+	if err != nil {
+		return err
+	}
+	if colexist {
+		return nil
+	}
+	columnType = strings.Trim(columnType, " ")
+	if columnType == "" {
+		return errEmptyParamColType
 	}
 	var constraint string
 	if isPK {
@@ -60,44 +78,46 @@ func CreateColumnWithConstraint(db *sql.DB, schema, column, columnType, defaul s
 	if isNotNull {
 		constraint += " NOT NULL"
 	}
-	defaul = strings.Trim(defaul, " ")
-	if defaul != "" {
-		constraint += " DEFAULT '" + defaul + "'"
+	deflt = parseDefault(columnType, deflt)
+	if deflt != "" {
+		constraint += " DEFAULT " + deflt
 	}
-	database, table := parseTableSchema(db, schema)
-	_, err := db.Exec("ALTER TABLE " + database + "." + table + " ADD " + column + " " + columnType + constraint)
+	_, err = db.Exec("ALTER TABLE " + database + "." + table + " ADD " + column + " " + columnType + constraint)
 	return err
 }
 
-// DropColumn drop a specific cloumn
-// Return errDropedColumnNotExist if column not exists
-// Lacking of params database, table, column or columnType leads to panic
-func DropColumn(db *sql.DB, schema, column string) error {
-	column = strings.Trim(column, " ")
-	if column == "" {
-		panic(errEmptyParamColumn)
+// parseDefault add single quote to deflt when colType is VARCHAR
+func parseDefault(colType, deflt string) string {
+	deflt = strings.Trim(deflt, " ")
+	if deflt == "" {
+		return ""
 	}
-	database, table := parseTableSchema(db, schema)
-	schema = database + "." + table
-	if !ColumnExist(db, schema, column) {
-		return errDropedColumnNotExist
+	if strings.Contains(strings.ToLower(colType), "varchar") {
+		return "'" + deflt + "'"
 	}
-	_, err := db.Exec("ALTER TABLE " + schema + " DROP COLUMN " + column)
-	return err
+	return deflt
 }
 
-// DropColumnIfExist drop a specific cloumn if exists
-// Lacking of params database, table, column or columnType leads to panic
+// DropColumnIfExist drop a specific cloumn if exists.
+// Empty param leads to panic.
 func DropColumnIfExist(db *sql.DB, schema, column string) error {
 	column = strings.Trim(column, " ")
 	if column == "" {
-		panic(errEmptyParamColumn)
+		return errEmptyParamColumn
 	}
-	database, table := parseTableSchema(db, schema)
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return err
+	}
 	schema = database + "." + table
-	if !ColumnExist(db, schema, column) {
+	var isexist bool
+	isexist, err = ColumnExist(db, schema, column)
+	if err != nil {
+		return err
+	}
+	if !isexist {
 		return nil
 	}
-	_, err := db.Exec("ALTER TABLE " + schema + " DROP COLUMN " + column)
+	_, err = db.Exec("ALTER TABLE " + schema + " DROP COLUMN " + column)
 	return err
 }

@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -9,36 +10,49 @@ import (
 
 // TableExist check whether a table exists
 // Panic if lack of database or table, and spaces in schema will be removed when query
-func TableExist(db *sql.DB, schema string) bool {
-	database, table := parseTableSchema(db, schema)
+func TableExist(db *sql.DB, schema string) (bool, error) {
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return false, err
+	}
 	r := db.QueryRow(
-		"SELECT TABLE_NAME "+
-			"FROM information_schema.TABLES "+
-			"WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?;", database, table,
+		`SELECT TABLE_NAME 
+			FROM information_schema.TABLES 
+			WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`, database, table,
 	)
 	return exist(r)
 }
 
 // CreateTable create a table, return errTableAlreadyExist if the table is already exist
-// Name of i (or dereferenced i when i is a pointer) is regarded as table name
+// Name of struct is regarded as thetable name
 func CreateTable(db *sql.DB, i interface{}) error {
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	table := t.Name()
-	database := getDatabaseName(db)
+	database, err := getDatabaseName(db)
+	if err != nil {
+		return err
+	}
 	return CreateTableWithSchema(db, i, database+"."+table)
 }
 
-// CreateTableWithSchema create a table with specific name, return errTableAlreadyExist if the table is already exist
-// Use the currently selected database if schema does not assign a database
-// Use the name of i (or dereferenced i when i is a pointer) as table name, if schema does not assign a table
-// Panic if you both do not select a databsae currently and do not assign a database in schema
+// CreateTableWithSchema create a table with specific name,
+// return errTableAlreadyExist if the table is already exist.
+// Use the currently selected database if schema does not contain database.
 func CreateTableWithSchema(db *sql.DB, i interface{}, schema string) error {
-	database, table := parseTableSchemaDefault(db, i, schema)
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return err
+	}
 	schema = database + "." + table
-	if TableExist(db, schema) {
+	var isexist bool
+	isexist, err = TableExist(db, schema)
+	if err != nil {
+		return err
+	}
+	if isexist {
 		return errTableAlreadyExist
 	}
 	return CreateTableWithSchemaIfNotExist(db, i, schema)
@@ -54,7 +68,7 @@ func CreateTableWithSchema(db *sql.DB, i interface{}, schema string) error {
 // }
 //
 // err := CreateTableIfNotExist(db, CreateTableInstance{})
-// which is equal to :
+// is equal to :
 // err := CreateTableWithSchemaIfNotExist(db, &CreateTableInstance{}, "CreateTableInstance")
 func CreateTableIfNotExist(db *sql.DB, i interface{}) error {
 	t := reflect.TypeOf(i)
@@ -64,25 +78,26 @@ func CreateTableIfNotExist(db *sql.DB, i interface{}) error {
 	return CreateTableWithSchemaIfNotExist(db, i, t.Name())
 }
 
-// CreateTableWithSchemaIfNotExist creates a table with the specific name
-// Use the currently selected database if schema does not assign a database
-// Use the name of i (or dereferenced i when i is a pointer) as table name, if schema does not assign a table
-// Panic if you both do not select a databsae currently and do not assign a database in schema
+// CreateTableWithSchemaIfNotExist creates a table with the specific name.
+// Use the currently selected database if schema does not contain database.
 func CreateTableWithSchemaIfNotExist(db *sql.DB, i interface{}, schema string) error {
-	database, table := parseTableSchemaDefault(db, i, schema)
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return err
+	}
 	schema = database + "." + table
 	t := reflect.TypeOf(i)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("%s is not a struct type", t.String()))
+		return errors.New(t.String() + " is not a struct")
 	}
 	if t.NumField() == 0 {
-		panic("struct has zero field")
+		return errors.New("struct has no field")
 	}
 	sqlTable := getTableSQL(schema, t)
-	_, err := db.Exec(sqlTable)
+	_, err = db.Exec(sqlTable)
 	return err
 }
 
@@ -132,7 +147,8 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 			}
 
 			switch fieldType.Kind() {
-			// todo: boolean?
+			case reflect.Bool:
+				columnType = "TINYINT"
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				columnType = "INT"
 			case reflect.Float32:
@@ -144,12 +160,13 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 			default:
 				ft := fieldType.String()
 				if ft == "time.Time" {
-					columnType = "DATE"
+					columnType = "DATETIME"
 				} else {
 					panic(fmt.Sprintf("unsuported type for mysql %s", ft))
 				}
 			}
-			// args[0] is name of column
+
+			// args[0] is the name of column
 			for _, arg := range args[1:] {
 				argSplited := strings.SplitN(arg, ":", 2)
 				switch argSplited[0] {
@@ -165,10 +182,10 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 
 				switch argSplited[0] {
 				case "size":
-					// todo: distinct varchar and other type. many times it is a bug
+					// after columnType, means size when columnType=VARCHAR
 					columnType = columnType + "(" + argSplited[1] + ")"
 				case "default":
-					columnDefault = "DEFAULT '" + argSplited[1] + "'"
+					columnDefault = "DEFAULT " + parseDefault(columnType, argSplited[1])
 				case "primarykey":
 					isPrimaryKey = true
 				case "autoincrement":
@@ -204,23 +221,33 @@ func getColumnsSQL(t reflect.Type) (sqlColumns []string) {
 }
 
 // DropTable drop a specific table
-// Panic if schema does not assign a table
-// Panic if you both do not select a databsae currently and do not assign a database in schema
-// Return errDropTableNotExist when table not exists
+// Panic if schema does not contain table
+// Return errDropTableNotExist when table does not exists
 func DropTable(db *sql.DB, schema string) error {
-	database, table := parseTableSchema(db, schema)
-	if !TableExist(db, database+"."+table) {
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return err
+	}
+	schema = database + "." + table
+	var isexist bool
+	isexist, err = TableExist(db, schema)
+	if err != nil {
+		return err
+	}
+	if !isexist {
 		return errDropedTableNotExist
 	}
-	_, err := db.Exec("DROP TABLE " + database + "." + table)
+	_, err = db.Exec("DROP TABLE " + schema)
 	return err
 }
 
 // DropTableIfExist drop a specific table if exists
-// Panic if schema does not assign a table
-// Panic if you both do not select a databsae currently and do not assign a database in schema
+// Panic if schema does not contain table
 func DropTableIfExist(db *sql.DB, schema string) error {
-	database, table := parseTableSchema(db, schema)
-	_, err := db.Exec("DROP TABLE IF EXISTS " + database + "." + table)
+	database, table, err := parseTableSchema(db, schema)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("DROP TABLE IF EXISTS " + database + "." + table)
 	return err
 }

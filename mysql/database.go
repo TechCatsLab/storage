@@ -6,11 +6,10 @@ import (
 )
 
 // DatabaseExist check whether a database exists
-// Return errEmptyParamDatabase if database is blank or a string of spaces
-func DatabaseExist(db *sql.DB, database string) bool {
+func DatabaseExist(db *sql.DB, database string) (bool, error) {
 	database = strings.Trim(database, " ")
 	if database == "" {
-		panic(errEmptyParamDatabase)
+		return false, errEmptyParamDatabase
 	}
 	r := db.QueryRow(
 		"SELECT SCHEMA_NAME "+
@@ -20,22 +19,7 @@ func DatabaseExist(db *sql.DB, database string) bool {
 	return exist(r)
 }
 
-// CreateDatabase create a database, return errDatabaseAlreadyExist if the database is already exist
-// Return errEmptyParamDatabase if database is blank or a string of spaces
-func CreateDatabase(db *sql.DB, database string) error {
-	database = strings.Trim(database, " ")
-	if database == "" {
-		return errEmptyParamDatabase
-	}
-	if DatabaseExist(db, database) {
-		return errDatabaseAlreadyExist
-	}
-	_, err := db.Exec("CREATE DATABASE " + database)
-	return err
-}
-
 // CreateDatabaseIfNotExist create a database if not exists
-// Return errEmptyParamDatabase if database is blank or a string of spaces
 func CreateDatabaseIfNotExist(db *sql.DB, database string) error {
 	database = strings.Trim(database, " ")
 	if database == "" {
@@ -45,30 +29,16 @@ func CreateDatabaseIfNotExist(db *sql.DB, database string) error {
 	return err
 }
 
-// DropDatabase drop a database
-// Drop the currently selected database if param database is blank or a string of spaces
-// Return errDropedDatabaseNotExist if database not exists
-func DropDatabase(db *sql.DB, database string) error {
-	database = strings.Trim(database, " ")
-	if database == "" {
-		database = getDatabaseName(db)
-		_, err := db.Exec("DROP DATABASE " + database)
-		return err
-	}
-	if !DatabaseExist(db, database) {
-		return errDropedDatabaseNotExist
-	}
-	_, err := db.Exec("DROP DATABASE " + database)
-	return err
-}
-
 // DropDatabaseIfExist drop a databse if exists
-// Drop the currently selected database if param database is blank or a string of spaces
+// Drop the current database if param database is empty
 func DropDatabaseIfExist(db *sql.DB, database string) error {
 	database = strings.Trim(database, " ")
 	if database == "" {
-		database = getDatabaseName(db)
-		_, err := db.Exec("DROP DATABASE " + database)
+		database, err := getDatabaseName(db)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("DROP DATABASE " + database)
 		return err
 	}
 	_, err := db.Exec("DROP DATABASE IF EXISTS " + database)

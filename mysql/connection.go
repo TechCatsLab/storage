@@ -4,8 +4,8 @@ import (
 	"database/sql"
 )
 
-func NumProcess(db *sql.DB) (num int32, err error) {
-	r := db.QueryRow("SELECT COUNT(0) FROM information_schema.PROCESSLIST;")
-	err = r.Scan(&num)
+// NumProcess return the number of transaction
+func NumProcess(db *sql.DB) (num int, err error) {
+	err = db.QueryRow("SELECT COUNT(0) FROM information_schema.PROCESSLIST").Scan(&num)
 	return
 }

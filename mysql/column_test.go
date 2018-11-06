@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/storage/mysql/constant"
+	"github.com/TechCatsLab/storage/mysql/constant"
 )
 
 func Test_column(t *testing.T) {

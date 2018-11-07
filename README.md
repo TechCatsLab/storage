@@ -1,6 +1,6 @@
 # storage
-mysql tools:
+mysql tool:
 
-Check whether specific database, table and cloumn exist
+Check whether database, table or cloumn exist
 
-Create/drop specific database, table and cloumn
+Create/Drop database, table or cloumn

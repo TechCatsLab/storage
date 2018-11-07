@@ -74,7 +74,6 @@ func parseTableSchemaDefault(db *sql.DB, i interface{}, schema string) (database
 }
 
 // getDatabaseName gets the name of the current database
-// Causing panic if there is no selected database
 func getDatabaseName(db *sql.DB) (database string, err error) {
 	err = db.QueryRow(
 		"SELECT SCHEMA_NAME " +

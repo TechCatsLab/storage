@@ -19,6 +19,6 @@ var (
 
 	errDropedDatabaseNotExist = errors.New("drop a database that does not exist")
 	errDropedTableNotExist    = errors.New("drop a table that does not exist")
-	errDropedColumnNotExist   = errors.New("drop a column that does not exist")
+	errColumnNotExist         = errors.New("drop a column that does not exist")
 	errDropedIndexNotExist    = errors.New("drop a index that does not exist")
 )
